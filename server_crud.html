@@ -1,0 +1,177 @@
+<html>
+    <head>
+        <title>Search Records</title>
+        <style>
+            #form_div{
+                width: 25%;
+                padding: 3%;
+                background: lavender;
+                border: 1px solid;
+                margin: 2%;
+            }
+        </style>
+        <script>
+            let students = [];
+            function performAjax(httpMethod, url, params) {
+                const myPromise = new Promise((resolve, reject) => {
+                    var xhttp = new XMLHttpRequest();
+                    xhttp.onreadystatechange = function() {
+                        if (this.readyState == 4 && this.status == 200) {
+                            resolve(JSON.parse(this.responseText));
+                        }
+                        if (this.status == 500) {
+                            reject({ error: true, message: "ServerError"});
+                        } 
+                        if (this.status == 404) {
+                            reject({ error: true, message: "Resource not found"});
+                        }
+                    };
+                    xhttp.open(httpMethod, url, true);
+                    xhttp.setRequestHeader("Content-Type", "application/json");
+                    params ? xhttp.send(params): xhttp.send();
+                });
+                return myPromise;
+            }
+            function loadData() {
+                //const students = ''    //get students from server
+                console.log("First console");
+                const getStudentsPromise = performAjax("GET", "http://localhost:4000/students");
+                getStudentsPromise
+                .then((studentsList) => {
+                    loadStudents(studentsList);
+                })
+                .catch(err => {
+                    alert(err.message);
+                })
+            }
+            function editStudent(event) {
+                let editRecord;
+                students.map(student => {
+                    if (student._id === event.target.id) {
+                        editRecord = student;
+                    }
+                });
+                if (editRecord !== undefined) {
+                    document.getElementById("id").value = editRecord._id;
+                    document.getElementById("name").value = editRecord.name;
+                    document.getElementById("age").value = editRecord.age;
+                    editRecord.gender === 'Male' ? document.getElementById("male").checked = true : document.getElementById("female").checked = true;
+                    document.getElementById("qualification").value = editRecord.qualification;
+                    document.getElementById("address").value = editRecord.address;
+                    document.getElementById("submit").style.display = 'none';
+                    document.getElementById("update").style.display = 'inline';
+                } else {
+                    alert("Student not found");
+                }
+            }
+
+            function deleteStudent(event) {
+                const deletePromise = performAjax('DELETE', `http://localhost:4000/students/${event.target.id}`);
+                deletePromise
+                .then((remainingStudents) => {
+                    loadStudents(remainingStudents);
+                })
+                .catch(err => {
+                    alert(err.message);
+                })
+            }
+            function loadStudents(records) {
+                students = records;
+                //preparing table header
+                const tableHeader = `<tr><th>Sno</th><th>Name</th><th>Gender</th><th>Qualification</th><th>Age</th><th>Address</th><th>Actions</th></tr>`;
+                //preparing table rows
+                let tableRows = records.map((student, index) => {
+                    return `<tr><td>${index + 1}</td><td>${student.name}</td><td>${student.gender}</td><td>${student.qualification}</td><td>${student.age}</td><td>${student.address}</td><td><button onclick='editStudent(event)' id='${student._id}'>Edit</button><button id='${student._id}' onclick='deleteStudent(event)'>Delete</button></td></tr>`;
+                });
+                //"hello "+name+" how are you";
+                //`hello ${name} how are you`;
+                //writing to table
+                document.getElementById("students_table").innerHTML = `${tableHeader}${tableRows.join('')}`;
+            }
+            function filterRecords(event) {
+                const searchString = event.target.value;
+                const searchStudentsPromise = performAjax("GET", `http://localhost:4000/students/search?string=${searchString}`);
+                searchStudentsPromise
+                .then(filteredStudents => {
+                    loadStudents(filteredStudents);
+                })
+                .catch(err => {
+                    alert(err.message);
+                })
+            }
+            function addStudent(event) {
+                event.preventDefault();
+                const id = document.getElementById("id").value;
+                const name = document.getElementById("name").value;
+                const age = document.getElementById("age").value;
+                const gender = document.getElementById("male").checked ? "Male":"Female";
+                const qualification = document.getElementById("qualification").value;
+                const address = document.getElementById("address").value;
+                if(event.target.id === 'submit'){
+                    const addStudentPromise = performAjax(
+                        "POST", 
+                        "http://localhost:4000/students",
+                        JSON.stringify({ name, age, gender, qualification, address })
+                    );
+                    addStudentPromise
+                    .then(newStudentsList => {
+                        loadStudents(newStudentsList);
+                    })
+                    .catch(err => {
+                        alert(err.message);
+                    })
+                    
+                } else {
+                    const updateStudentPromise = performAjax(
+                        "PUT", 
+                        `http://localhost:4000/students/${id}`,
+                        JSON.stringify({ name, age, gender, qualification, address })
+                    );
+                    updateStudentPromise
+                    .then(updatedStudentsList => {
+                        loadStudents(updatedStudentsList);
+                    })
+                    .catch(err => {
+                        alert(err.message);
+                    })
+                }
+                //loadStudents(students);
+            }
+        </script>
+    </head>
+    <body onload="loadData()">
+        <h1>Search Students</h1>
+        <div>
+            <label>Search: </label>
+            <input type="text" placeholder="search" onkeyup="filterRecords(event)" />
+        </div>
+        <br />
+        <div>
+            <button style="margin-left: 30%;">Add</button>
+        </div>
+        <table id="students_table" border="1" style="width: 500px;">
+
+        </table>
+        <div>
+            <pre>
+                <form>
+                    <input type="hidden" id="id" />
+                    Name: <input type="text" id="name" />
+                    Age: <input type="number" id="age" />
+                    Gender: <input type="radio" id="male" name="gender" value="Male" /> Male &nbsp; <input name="gender" type="radio" id="female" value="Female" /> Female
+                    Qualification: <select id="qualification">
+                        <option value="MCA">MCA</option>
+                        <option value="MBA">MBA</option>
+                        <option value="BTech">BTech</option>
+                    </select>
+                    Address: <textarea id="address">
+
+                    </textarea>
+                    <input type="button" onclick="addStudent(event)" id="submit" value="Add" />
+                    <input type="button" style="display: none;" onclick="addStudent(event)" id="update" value="Update" />
+                    <input type="reset" value="Clear" />
+                </form>
+            </pre>
+        </div>
+    </body>
+</html>
